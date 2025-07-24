@@ -1,73 +1,108 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 
-public class BallController : MonoBehaviour
+[RequireComponent(typeof(BallParticleEffector))]
+public abstract class BallController : MonoBehaviour
 {
-    public float baseJumpForce = 8f;
-    public float gravityScaleStart = 1f;
-    public float gravityIncreasePerBounce = 0.5f;
-    public float horizontalSpeed = 3f;
-
-    private Rigidbody2D rb;
-    private float currentGravityScale;
-    private int horizontalDirection = 1; // 1 = phải, -1 = trái
-    public float jumpHeight = 3;
-    private BallSound ballSound;
-    void Start()
+    protected BallSound ballSound;
+    protected BallParticleEffector ballParticleEffector;
+    [SerializeField]
+    protected Rigidbody2D rb;
+    protected int directionX = 1;
+    protected int damage = 1;
+    [SerializeField]
+    protected float moveSpeed = 5;
+    [SerializeField]
+    protected float angle = 45;
+    public BallSO ballSO;
+    protected virtual void Start()
     {
+        if(!rb)
         rb = GetComponent<Rigidbody2D>();
-        currentGravityScale = gravityScaleStart;
-        rb.gravityScale = currentGravityScale;
+        if(!ballSound)
         ballSound = GetComponent<BallSound>();
-        // Gán vận tốc ngang ban đầu
-        rb.velocity = new Vector2(horizontalSpeed * horizontalDirection, 0);
+        if (!ballParticleEffector)
+            ballParticleEffector = GetComponent<BallParticleEffector>();
+        LaunchAtAngle(moveSpeed, angle);
     }
 
-    void FixedUpdate()
+    private void Update()
     {
-        // Cập nhật vận tốc ngang giữ nguyên liên tục
-        rb.velocity = new Vector2(horizontalSpeed * horizontalDirection, rb.velocity.y);
+        DoAbilityOnUpdate();
     }
 
+    public void LaunchAtAngle(float speed, float angleDegrees)
+    {
+        float angleRadians = angleDegrees * Mathf.Deg2Rad;
+        Vector2 launchVelocity = new Vector2(
+            speed * Mathf.Cos(angleRadians),
+            speed * Mathf.Sin(angleRadians)
+        );
+        rb.velocity = launchVelocity;
+    }
+
+    protected virtual void DoAbilityOnUpdate()
+    {
+
+    }
+
+    protected virtual void DoAbilityOnCollisionEnter(Collision2D collision)
+    {
+        Vector2 normal = collision.contacts[0].normal;
+        if (Mathf.Abs(normal.x) > 0.9f)
+            ChangeDirection();
+        Damageable(collision);
+    }
+
+    protected virtual void DoAbilityOnCollisionStay(Collision2D collision)
+    {
+
+    }
+    public void ChangeVelocity(Vector2 velo)
+    {
+        rb.velocity = velo;
+    }
+    public void ChangeDirection()
+    {
+        directionX *= -1;
+    }
+
+    public void OnTriggerEnter2D(Collider2D collision)
+    {
+        if (collision.CompareTag("Finish"))
+        {
+            GameManager.Instance.ChangeGameState(GameManager.GameState.End);
+        }
+    }
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        BoxCollider boxCollider = collision.gameObject.GetComponent<BoxCollider>();
-        Vector2 normal = collision.contacts[0].normal;
-
-        if (normal.y > 0.9f)
-        {
-            ballSound.PlaySoundEffect();
-        }
-
-        if (Mathf.Abs(normal.x) > 0.9f)
-        {
-            horizontalDirection *= -1;
-        }
-
-        if (boxCollider)
-        {
-            boxCollider.TakeDamage();
-        }
+        DoAbilityOnCollisionEnter(collision);
     }
 
     private void OnCollisionStay2D(Collision2D collision)
     {
-        Vector2 normal = collision.contacts[0].normal;
-        if (normal.y > 0.9f)
-        {
-            currentGravityScale += gravityIncreasePerBounce;
-            rb.gravityScale = currentGravityScale;
-            var jumpHeightRate = 0.2f;
-            var smallestJumpHeight = 0.4f;
-            jumpHeight -= jumpHeightRate;
-            jumpHeight = Mathf.Max(jumpHeight, smallestJumpHeight);
-            float gravity = Mathf.Abs(Physics2D.gravity.y * rb.gravityScale);
-            float minRequiredJump = Mathf.Sqrt(2 * gravity * smallestJumpHeight);
-            float requiredJump = Mathf.Sqrt(2 * gravity * jumpHeight);
-            requiredJump = Mathf.Max(requiredJump, minRequiredJump);
+        DoAbilityOnCollisionStay(collision);
+    }
 
-            rb.velocity = new Vector2(rb.velocity.x, requiredJump);
+    public void AddDamage(int damage)
+    {
+        this.damage += damage;
+    }
+
+    public void Damageable(Collision2D collision)
+    {
+        BoxCollider boxCollider = collision.gameObject.GetComponent<BoxCollider>();
+        ContactPoint2D contact = collision.contacts[0];
+        Vector3 hitPoint = contact.point;
+        if (boxCollider)
+        {
+            boxCollider.TakeDamage(damage);
+            ballSound.PlaySoundEffect();
+            if(ballParticleEffector)
+            ballParticleEffector.PlayParticle(hitPoint);
         }
     }
 }

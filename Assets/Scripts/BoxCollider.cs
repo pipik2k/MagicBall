@@ -1,20 +1,33 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class BoxCollider : MonoBehaviour
 {
     [SerializeField]
     private int hitPoints = 100;
+    [SerializeField]
+    private Text hitpointText;
 
-    // Call this function to apply damage to the box
-    public void TakeDamage()
+    private void Start()
     {
-        var damage = 1;
-        hitPoints -= damage;
-        if (hitPoints <= 0)
+        UpdateHitPointTxt();
+    }
+
+    public void TakeDamage(int damage)
+    {
+        if (hitPoints > 0)
         {
-            Destroy(gameObject);
+            hitPoints -= damage;
+            UpdateHitPointTxt();
         }
+        else
+            Destroy(gameObject);
+    }
+
+    private void UpdateHitPointTxt()
+    {
+        hitpointText.text = hitPoints.ToString();
     }
 }
